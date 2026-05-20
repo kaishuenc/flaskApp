@@ -151,7 +151,12 @@ async function startServer() {
 
   app.get("/api/data", async (_req, res) => {
     const books = (await pool.query("SELECT * FROM books ORDER BY added_date DESC")).rows.map(rowToBook);
-    const records = (await pool.query("SELECT * FROM borrow_records ORDER BY borrow_date DESC")).rows.map(rowToRecord);
+    // Newest first. borrow_date is day-precision, so same-day records would
+    // tie — fall back to id DESC, which sorts our `rec-<Date.now()>-<random>`
+    // ids in creation order (newer ms timestamp = larger string).
+    const records = (await pool.query(
+      "SELECT * FROM borrow_records ORDER BY borrow_date DESC, id DESC"
+    )).rows.map(rowToRecord);
     res.json({ books, records });
   });
 

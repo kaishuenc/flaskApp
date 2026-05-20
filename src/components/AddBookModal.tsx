@@ -6,6 +6,7 @@ import { X, BookOpen } from 'lucide-react';
 interface AddBookModalProps {
   onAdd: (book: Book) => void;
   onClose: () => void;
+  submitting?: boolean;
 }
 
 const COVER_OPTIONS = [
@@ -17,7 +18,7 @@ const COVER_OPTIONS = [
   { name: 'Obisidian Black', className: 'from-neutral-800 to-neutral-600' },
 ];
 
-export default function AddBookModal({ onAdd, onClose }: AddBookModalProps) {
+export default function AddBookModal({ onAdd, onClose, submitting = false }: AddBookModalProps) {
   const [title, setTitle] = useState('');
   const [author, setAuthor] = useState('');
   const [category, setCategory] = useState(CATEGORIES[0]);
@@ -181,9 +182,10 @@ export default function AddBookModal({ onAdd, onClose }: AddBookModalProps) {
             </button>
             <button
               type="submit"
-              className="px-5 py-2 bg-indigo-600 text-white hover:bg-indigo-700 transition-colors rounded-lg text-sm font-medium shadow-xs hover:shadow-md"
+              disabled={submitting}
+              className="px-5 py-2 bg-indigo-600 text-white hover:bg-indigo-700 transition-colors rounded-lg text-sm font-medium shadow-xs hover:shadow-md disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              Register & Publish
+              {submitting ? 'Saving…' : 'Register & Publish'}
             </button>
           </div>
         </form>

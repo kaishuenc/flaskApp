@@ -173,18 +173,22 @@ async function startServer() {
   app.post("/api/borrow", async (req, res) => {
     const { bookId, borrowerName, borrowerId, borrowDate, dueDate } = req.body;
 
-    const bookRow = (await pool.query("SELECT * FROM books WHERE id = $1", [bookId])).rows[0];
-    if (!bookRow || bookRow.available_copies <= 0) {
-      return res.status(400).json({ error: "Book not available or exists in insufficient numbers." });
-    }
-
-    await pool.query(
-      "UPDATE books SET available_copies = available_copies - 1 WHERE id = $1",
+    // Atomic decrement: only succeeds if available_copies > 0 at the moment
+    // of the UPDATE. Prevents two concurrent requests from both passing a
+    // SELECT check and over-borrowing the last copy.
+    const decremented = await pool.query(
+      `UPDATE books SET available_copies = available_copies - 1
+       WHERE id = $1 AND available_copies > 0
+       RETURNING *`,
       [bookId]
     );
+    if (decremented.rowCount === 0) {
+      return res.status(400).json({ error: "Book not available or exists in insufficient numbers." });
+    }
+    const bookRow = decremented.rows[0];
 
     const newRecord: BorrowRecord = {
-      id: "rec-" + Date.now(),
+      id: "rec-" + Date.now() + "-" + Math.random().toString(36).slice(2, 8),
       bookId,
       bookTitle: bookRow.title,
       borrowerName,
@@ -200,31 +204,38 @@ async function startServer() {
       [newRecord.id, newRecord.bookId, newRecord.bookTitle, newRecord.borrowerName, newRecord.borrowerId, newRecord.borrowDate, newRecord.dueDate, newRecord.status]
     );
 
-    const updatedBook = rowToBook((await pool.query("SELECT * FROM books WHERE id = $1", [bookId])).rows[0]);
-    res.status(201).json({ success: true, record: newRecord, book: updatedBook });
+    res.status(201).json({ success: true, record: newRecord, book: rowToBook(bookRow) });
   });
 
   app.post("/api/return", async (req, res) => {
     const { recordId } = req.body;
     const todayStr = new Date().toISOString().split('T')[0];
 
-    const recordRow = (await pool.query("SELECT * FROM borrow_records WHERE id = $1", [recordId])).rows[0];
-    if (!recordRow || recordRow.status === "returned") {
-      return res.status(400).json({ error: "Record not found or already returned." });
-    }
-
-    await pool.query(
-      "UPDATE borrow_records SET status = 'returned', return_date = $1 WHERE id = $2",
+    // Atomic transition: status must be != 'returned' when we update.
+    // A double-click can't increment available_copies twice because the
+    // second UPDATE finds no row to change.
+    const updated = await pool.query(
+      `UPDATE borrow_records SET status = 'returned', return_date = $1
+       WHERE id = $2 AND status <> 'returned'
+       RETURNING *`,
       [todayStr, recordId]
     );
-    await pool.query(
-      `UPDATE books SET available_copies = LEAST(total_copies, available_copies + 1) WHERE id = $1`,
+    if (updated.rowCount === 0) {
+      return res.status(400).json({ error: "Record not found or already returned." });
+    }
+    const recordRow = updated.rows[0];
+
+    const bookUpdate = await pool.query(
+      `UPDATE books SET available_copies = LEAST(total_copies, available_copies + 1)
+       WHERE id = $1 RETURNING *`,
       [recordRow.book_id]
     );
 
-    const updatedRecord = rowToRecord((await pool.query("SELECT * FROM borrow_records WHERE id = $1", [recordId])).rows[0]);
-    const updatedBook = rowToBook((await pool.query("SELECT * FROM books WHERE id = $1", [recordRow.book_id])).rows[0]);
-    res.json({ success: true, record: updatedRecord, book: updatedBook });
+    res.json({
+      success: true,
+      record: rowToRecord(recordRow),
+      book: bookUpdate.rows[0] ? rowToBook(bookUpdate.rows[0]) : null,
+    });
   });
 
   if (process.env.NODE_ENV !== "production") {

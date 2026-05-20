@@ -6,9 +6,10 @@ interface BorrowModalProps {
   book: Book;
   onBorrow: (record: Omit<BorrowRecord, 'id' | 'bookId' | 'bookTitle' | 'status'>) => void;
   onClose: () => void;
+  submitting?: boolean;
 }
 
-export default function BorrowModal({ book, onBorrow, onClose }: BorrowModalProps) {
+export default function BorrowModal({ book, onBorrow, onClose, submitting = false }: BorrowModalProps) {
   const [borrowerName, setBorrowerName] = useState('');
   const [borrowerId, setBorrowerId] = useState('');
   const [termDays, setTermDays] = useState('14'); // Default 14 days
@@ -158,9 +159,10 @@ export default function BorrowModal({ book, onBorrow, onClose }: BorrowModalProp
             </button>
             <button
               type="submit"
-              className="px-5 py-2 bg-indigo-600 text-white hover:bg-indigo-700 transition-colors rounded-lg text-sm font-medium shadow-xs hover:shadow-md"
+              disabled={submitting}
+              className="px-5 py-2 bg-indigo-600 text-white hover:bg-indigo-700 transition-colors rounded-lg text-sm font-medium shadow-xs hover:shadow-md disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              Issue Book
+              {submitting ? 'Issuing…' : 'Issue Book'}
             </button>
           </div>
         </form>

@@ -22,6 +22,7 @@ export default function App() {
   const [books, setBooks] = useState<Book[]>([]);
   const [records, setRecords] = useState<BorrowRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
   const [errorHeader, setErrorHeader] = useState('');
 
   const [activeTab, setActiveTab] = useState<ActiveTab>('books');
@@ -54,8 +55,11 @@ export default function App() {
     fetchData();
   }, []);
 
-  // Handlers
+  // Handlers — `submitting` guards each mutation so double-clicks during a slow
+  // request (common on Render free tier cold starts) can't fire twice.
   const handleAddBook = async (newBook: Book) => {
+    if (submitting) return;
+    setSubmitting(true);
     try {
       const res = await fetch('/api/books', {
         method: 'POST',
@@ -68,11 +72,15 @@ export default function App() {
       }
     } catch (error) {
       alert('Could not sync newly added book with background service.');
+    } finally {
+      setSubmitting(false);
     }
   };
 
   const handleDeleteBook = async (id: string) => {
+    if (submitting) return;
     if (window.confirm('Are you sure you want to remove this book from the catalog?')) {
+      setSubmitting(true);
       try {
         const res = await fetch(`/api/books/${id}`, { method: 'DELETE' });
         if (res.ok) {
@@ -80,6 +88,8 @@ export default function App() {
         }
       } catch (error) {
         alert('Could not remove the selected book.');
+      } finally {
+        setSubmitting(false);
       }
     }
   };
@@ -93,8 +103,8 @@ export default function App() {
   };
 
   const handleConfirmBorrow = async (formData: { borrowerName: string; borrowerId: string; borrowDate: string; dueDate: string }) => {
-    if (!lendingBook) return;
-
+    if (!lendingBook || submitting) return;
+    setSubmitting(true);
     try {
       const res = await fetch('/api/borrow', {
         method: 'POST',
@@ -113,10 +123,14 @@ export default function App() {
       }
     } catch (error) {
       alert('Could not issue book.');
+    } finally {
+      setSubmitting(false);
     }
   };
 
   const handleReturnBook = async (recordId: string) => {
+    if (submitting) return;
+    setSubmitting(true);
     try {
       const res = await fetch('/api/return', {
         method: 'POST',
@@ -128,6 +142,8 @@ export default function App() {
       }
     } catch (error) {
       alert('Failed to return book.');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -500,17 +516,19 @@ export default function App() {
 
       {/* MODALS */}
       {showAddBook && (
-        <AddBookModal 
-          onAdd={handleAddBook} 
-          onClose={() => setShowAddBook(false)} 
+        <AddBookModal
+          onAdd={handleAddBook}
+          onClose={() => setShowAddBook(false)}
+          submitting={submitting}
         />
       )}
 
       {lendingBook && (
-        <BorrowModal 
-          book={lendingBook} 
-          onBorrow={handleConfirmBorrow} 
-          onClose={() => setLendingBook(null)} 
+        <BorrowModal
+          book={lendingBook}
+          onBorrow={handleConfirmBorrow}
+          onClose={() => setLendingBook(null)}
+          submitting={submitting}
         />
       )}
     </div>

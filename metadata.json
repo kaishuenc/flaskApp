@@ -1,0 +1,6 @@
+{
+  "name": "图书借阅系统",
+  "description": "一个简单、精美、实用的图书库存与借还书管理系统，包含数据统计、图书录入、图书检索及借还日志功能。",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
